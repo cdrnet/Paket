@@ -927,11 +927,11 @@ module ProjectFile =
         |> Seq.iter (fun (propsNodes,targetsNodes,chooseNode,propertyChooseNode, analyzersNode) ->
 
             let i = ref (project.ProjectNode.ChildNodes.Count-1)
-            while 
-              !i >= 0 && 
-                (String.startsWithIgnoreCase "<import" (project.ProjectNode.ChildNodes.[!i].OuterXml.ToString())  && 
-                 String.containsIgnoreCase "label" (project.ProjectNode.ChildNodes.[!i].OuterXml.ToString())  &&
-                 String.containsIgnoreCase "paket" (project.ProjectNode.ChildNodes.[!i].OuterXml.ToString()) )  do
+            while !i >= 0 &&
+                let xml = project.ProjectNode.ChildNodes.[!i].OuterXml.ToString() in
+                    (String.startsWithIgnoreCase "<import" xml &&
+                     String.containsIgnoreCase "label" xml &&
+                     String.containsIgnoreCase "paket" xml )  do
                 decr i
             
             if !i <= 0 then
@@ -946,13 +946,20 @@ module ProjectFile =
             while !j < project.ProjectNode.ChildNodes.Count && String.startsWithIgnoreCase  "<import" (project.ProjectNode.ChildNodes.[!j].OuterXml.ToString()) do
                 incr j
 
+            let rec tryFindIndex p index (nodes:XmlNodeList) =
+                if index >= nodes.Count then None
+                elif p (nodes.[index].OuterXml.ToString()) then Some index
+                else tryFindIndex p (index+1) nodes
+
             let k = ref !j
-            while !k < project.ProjectNode.ChildNodes.Count &&
-                (String.startsWithIgnoreCase  "<PropertyGroup" (project.ProjectNode.ChildNodes.[!k].OuterXml.ToString()) ||
-                 (String.startsWithIgnoreCase  "<import" (project.ProjectNode.ChildNodes.[!k].OuterXml.ToString()) &&
-                  not (String.containsIgnoreCase "label" (project.ProjectNode.ChildNodes.[!k].OuterXml.ToString()) &&
-                       String.containsIgnoreCase "paket" (project.ProjectNode.ChildNodes.[!k].OuterXml.ToString())))) do
-                incr k
+            match tryFindIndex (fun xml -> String.startsWithIgnoreCase "<import" xml && String.containsIgnoreCase "Microsoft.CSharp.targets" xml) 0 project.ProjectNode.ChildNodes with
+            | Some index -> k := (index+1)
+            | None ->
+                while !k < project.ProjectNode.ChildNodes.Count &&
+                    let xml = project.ProjectNode.ChildNodes.[!k].OuterXml.ToString() in
+                        String.startsWithIgnoreCase  "<PropertyGroup" xml ||
+                        (String.startsWithIgnoreCase  "<import" xml && not (String.containsIgnoreCase "label" xml && String.containsIgnoreCase "paket" xml)) do
+                    incr k
 
             let addProps() =
                 if !j = 0 then
